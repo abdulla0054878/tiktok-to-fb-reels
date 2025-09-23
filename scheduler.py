@@ -1,7 +1,9 @@
+# scheduler.py
 import time, os, subprocess
 from yt_dlp import YoutubeDL
 
-TIKTOK_PROFILE = "https://www.tiktok.com/@example_user"  # <-- বদলাও
+# 👉 TikTok Profile link (Env থেকে নেবে বা এখানে দাও)
+TIKTOK_PROFILE = os.getenv("TIKTOK_PROFILE", "https://www.tiktok.com/@example_user")
 last_seen_id = None
 
 def check_profile(url):
@@ -23,9 +25,16 @@ def download_video(url):
         info = ydl.extract_info(url, download=True)
         return ydl.prepare_filename(info)
 
-while True:
-    new_video = check_profile(TIKTOK_PROFILE)
-    if new_video:
-        path = download_video(new_video)
-        subprocess.run(["node", "puppeteer_uploader.js", path])
-    time.sleep(300)  # 5 মিনিট পর চেক
+if __name__ == "__main__":
+    while True:
+        print("🔄 Checking TikTok profile:", TIKTOK_PROFILE)
+        new_video = check_profile(TIKTOK_PROFILE)
+        if new_video:
+            print("📥 নতুন ভিডিও:", new_video)
+            filepath = download_video(new_video)
+            print("➡️ Calling Puppeteer uploader:", filepath)
+            subprocess.run(["node", "puppeteer_uploader.js", filepath])
+        else:
+            print("🚫 নতুন কোনো ভিডিও নেই")
+
+        time.sleep(300)  # 5 মিনিট পর আবার
