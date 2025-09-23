@@ -6,40 +6,43 @@ from yt_dlp import YoutubeDL
 from drive_upload import upload_file
 from fb_post import post_video_file
 
-# TikTok profile link from ENV
+# ========== ENV VARIABLES ==========
 TIKTOK_PROFILE = os.getenv("TIKTOK_PROFILE")
 if not TIKTOK_PROFILE:
-    raise RuntimeError("❌ 'TIKTOK_PROFILE' variable সেট করা হয়নি Railway-তে!")
+    raise RuntimeError("❌ 'TIKTOK_PROFILE' variable Railway-তে সেট করা হয়নি!")
 
-# ---------- Load TikTok Cookies ----------
+DRIVE_FOLDER_ID = os.getenv("DRIVE_UPLOAD_FOLDER_ID", "")
+
+# TikTok Cookies ENV থেকে নাও
 COOKIEFILE = None
 cookies_raw = os.getenv("TIKTOK_COOKIES", "").strip()
 if cookies_raw:
     COOKIEFILE = "/tmp/tiktok_cookies.txt"
     try:
-        cookies = json.loads(cookies_raw)  # Expect JSON array
+        cookies = json.loads(cookies_raw)  # Expect JSON Array
         with open(COOKIEFILE, "w") as f:
             for c in cookies:
                 domain = c.get("domain", ".tiktok.com")
                 flag = "TRUE" if not c.get("hostOnly") else "FALSE"
                 path = c.get("path", "/")
                 secure = "TRUE" if c.get("secure") else "FALSE"
-                expiration = str(int(c.get("expirationDate", 0))) if c.get("expirationDate") else "0"
-                name = c["name"]
-                value = c["value"]
-                line = "\t".join([domain, flag, path, secure, expiration, name, value])
+                exp = str(int(c.get("expirationDate", 0))) if c.get("expirationDate") else "0"
+                name = c["name"]; value = c["value"]
+                line = "\t".join([domain, flag, path, secure, exp, name, value])
                 f.write(line + "\n")
-        print("🍪 TikTok cookies written to:", COOKIEFILE)
+        print("🍪 TikTok cookies written to file")
     except Exception as e:
-        print("⚠️ Could not parse TIKTOK_COOKIES JSON:", str(e))
+        print("⚠️ Could not parse cookies JSON:", e)
         COOKIEFILE = None
 
+# পুরোনো ভিডিও ট্র্যাকের জন্য
 seen_ids = set()
 
+# ========== MAIN FUNCTION ==========
 def check_new_tiktok_videos():
     print("🔍 Checking TikTok profile:", TIKTOK_PROFILE)
     try:
-        # Profile scraping (only metadata)
+        # শুধু লিস্ট আনার জন্য options
         ydl_opts = {
             "extract_flat": True,
             "quiet": True,
@@ -57,7 +60,7 @@ def check_new_tiktok_videos():
             info = ydl.extract_info(TIKTOK_PROFILE, download=False)
             entries = info.get("entries", [])
             if not entries:
-                print("❌ কোনো ভিডিও পাওয়া যায়নি")
+                print("❌ কোনো ভিডিও নেই")
                 return
 
             latest = entries[0]
@@ -65,13 +68,13 @@ def check_new_tiktok_videos():
             url = latest.get("url")
 
             if not video_id or video_id in seen_ids:
-                print("⏳ নতুন ভিডিও নাই")
+                print("⏳ নতুন ভিডিও আসেনি")
                 return
 
-            print("✨ নতুন ভিডিও পাওয়া গেছে:", url)
+            print("✨ নতুন ভিডিও:", url)
             seen_ids.add(video_id)
 
-            # Download video
+            # ---------- ভিডিও ডাউনলোড ----------
             filepath = f"/tmp/{video_id}.mp4"
             dl_opts = {
                 "outtmpl": filepath,
@@ -87,15 +90,16 @@ def check_new_tiktok_videos():
 
             with YoutubeDL(dl_opts) as ydl2:
                 ydl2.download([url])
-            print("📥 ডাউনলোড শেষ:", filepath)
+            print("📥 ডাউনলোড হয়েছে:", filepath)
 
-            # Upload to Drive
+            # ---------- Google Drive Upload ----------
             meta = upload_file(filepath,
                                filename=os.path.basename(filepath),
+                               folder_id=DRIVE_FOLDER_ID,
                                make_public=False)
             print("☁️ Uploaded to Drive:", meta)
 
-            # Post to Facebook
+            # ---------- Facebook Upload ----------
             fb_res = post_video_file(filepath,
                                      title=latest.get("title", ""),
                                      description="")
@@ -106,9 +110,9 @@ def check_new_tiktok_videos():
     except Exception as e:
         print("❌ Error:", str(e))
 
-# ---------- Schedule ----------
-schedule.every(5).minutes.do(check_new_tiktok_videos)
 
+# ========== SCHEDULER ==========
+schedule.every(5).minutes.do(check_new_tiktok_videos)
 print("🚀 TikTok Worker started for profile:", TIKTOK_PROFILE)
 
 while True:
