@@ -1,4 +1,13 @@
+# TikTok ভিডিও ডাউনলোডের জন্য
 yt-dlp
+
+# Scheduler (প্রতি ৫ মিনিটে কাজ চালানোর জন্য)
+schedule
+
+# Google Drive API
 google-api-python-client
 google-auth
 google-auth-oauthlib
+
+# HTTP Requests (কোনো API কল বা extra দরকার হলে)
+requests
