@@ -1,9 +1,9 @@
-# scheduler.py
 import time, os, subprocess
 from yt_dlp import YoutubeDL
+from drive_upload import upload_file
 
-# 👉 TikTok Profile link (Env থেকে নেবে বা এখানে দাও)
 TIKTOK_PROFILE = os.getenv("TIKTOK_PROFILE", "https://www.tiktok.com/@example_user")
+DRIVE_FOLDER_ID = os.getenv("DRIVE_UPLOAD_FOLDER_ID", "")
 last_seen_id = None
 
 def check_profile(url):
@@ -30,11 +30,15 @@ if __name__ == "__main__":
         print("🔄 Checking TikTok profile:", TIKTOK_PROFILE)
         new_video = check_profile(TIKTOK_PROFILE)
         if new_video:
-            print("📥 নতুন ভিডিও:", new_video)
-            filepath = download_video(new_video)
-            print("➡️ Calling Puppeteer uploader:", filepath)
-            subprocess.run(["node", "puppeteer_uploader.js", filepath])
-        else:
-            print("🚫 নতুন কোনো ভিডিও নেই")
+            print("📥 New video:", new_video)
+            path = download_video(new_video)
+            print("☁ Uploading to Google Drive…")
+            uploaded = upload_file(path, folder_id=DRIVE_FOLDER_ID)
+            print("✅ Drive uploaded:", uploaded)
 
-        time.sleep(300)  # 5 মিনিট পর আবার
+            print("➡ Uploading to FB Page Reel…")
+            subprocess.run(["node", "puppeteer_uploader.js", path])
+
+        else:
+            print("🚫 No new video")
+        time.sleep(300)
