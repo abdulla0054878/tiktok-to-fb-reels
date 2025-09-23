@@ -1,5 +1,5 @@
 {
-  "name": "fb-reels-uploader",
+  "name": "fb-reels-bot",
   "version": "1.0.0",
   "dependencies": {
     "puppeteer": "^22.0.0"
