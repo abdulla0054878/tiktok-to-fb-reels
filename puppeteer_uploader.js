@@ -2,11 +2,11 @@ const puppeteer = require("puppeteer");
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
 const PAGE_PROFILE_LINK = process.env.FB_PAGE_PROFILE;
+const cookiesJSON = process.env.FB_COOKIES;
+const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
 
 (async () => {
-  const videoPath = process.argv[2];   // ভিডিও path
-  const captionText = process.argv[3] || "🚀 Auto Reel Upload";  // ক্যাপশন
-
+  const videoPath = process.argv[2];
   if (!videoPath) {
     console.error("❌ ভিডিও path দিতে হবে!");
     process.exit(1);
@@ -18,18 +18,25 @@ const PAGE_PROFILE_LINK = process.env.FB_PAGE_PROFILE;
       "--no-sandbox",
       "--disable-setuid-sandbox",
       "--disable-dev-shm-usage",
-      "--disable-accelerated-2d-canvas",
       "--no-first-run",
       "--no-zygote",
       "--single-process",
       "--disable-gpu"
-    ],
-    userDataDir: "./myProfile"
+    ]
   });
-
   const page = await browser.newPage();
 
-  // FB Page ওপেন করো এবং Switch Now প্রয়োজন হলে চাপো
+  // Load cookies if provided
+  if (cookiesJSON) {
+    try {
+      const cookies = JSON.parse(cookiesJSON);
+      await page.setCookie(...cookies);
+      console.log("🍪 Cookies applied!");
+    } catch (e) {
+      console.error("❌ Error parsing cookies:", e);
+    }
+  }
+
   await page.goto(PAGE_PROFILE_LINK, { waitUntil: "networkidle2" });
   await delay(5000);
 
@@ -41,28 +48,25 @@ const PAGE_PROFILE_LINK = process.env.FB_PAGE_PROFILE;
 
   await delay(8000);
 
-  // Reels Composer ওপেন
   await page.goto("https://www.facebook.com/reels/create", { waitUntil: "networkidle2" });
   await delay(7000);
 
   const composer = page.frames().find(f => f.url().includes("reel"));
   if (!composer) {
+    await page.screenshot({path:"error.png"});
     console.error("❌ Composer iframe পাওয়া যায়নি!");
     await browser.close();
     process.exit(1);
   }
 
-  // ভিডিও Attach
   const fileInput = await composer.$('input[type=file][accept*="video"]');
   await fileInput.uploadFile(videoPath);
   console.log("📤 ভিডিও attach complete!");
 
-  // Caption বসাও
   await composer.waitForSelector('div[role="textbox"][contenteditable="true"]');
   await composer.type('div[role="textbox"][contenteditable="true"]', captionText);
   console.log("✍️ Caption লিখা হয়েছে:", captionText);
 
-  // Publish
   const pubBtns = await composer.$x("//div[@role='button']//span[contains(text(),'Publish') or contains(text(),'প্রকাশ')]");
   if (pubBtns[0]) {
     await pubBtns[0].click();
@@ -71,5 +75,6 @@ const PAGE_PROFILE_LINK = process.env.FB_PAGE_PROFILE;
     console.log("⚠️ Publish button পাওয়া যায়নি!");
   }
 
+  await delay(15000);
   await browser.close();
 })();
