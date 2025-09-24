@@ -5,9 +5,7 @@ const PAGE_PROFILE_LINK = process.env.FB_PAGE_PROFILE;
 const cookiesJSON = process.env.FB_COOKIES;
 const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
 
-// -------------------
-// Helper → বোতামের লেখা খুঁজে ক্লিক
-// -------------------
+// Universal button click helper
 async function clickButtonByText(pageOrFrame, labels, context = "Page") {
   for (const label of labels) {
     const btns = await pageOrFrame.$$('div[role="button"], span');
@@ -82,7 +80,7 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
     process.exit(1);
   }
 
-  // --- Switch Now (if available) ---
+  // --- Switch Now ---
   await clickButtonByText(page, ["Switch Now", "সুইচ"], "SwitchProfile");
   await delay(5000);
 
@@ -121,30 +119,43 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
   await clickButtonByText(composer, ["Next", "পরবর্তী"], "Composer");
   await clickButtonByText(composer, ["Next", "পরবর্তী"], "Composer");
 
-  // --- Caption Step (Robust selectors) ---
+  // --- Caption Step with fallback ---
   try {
     console.log("⌛ Waiting for caption input…");
 
     const selectors = [
-      'textarea[aria-label="Describe your reel"]',   // নতুন UI
-      'div[role="textbox"][contenteditable="true"]', // পুরনো UI
+      'textarea[aria-label="Describe your reel"]',
+      'div[role="textbox"][contenteditable="true"]',
       'div[data-contents="true"][contenteditable="true"]'
     ];
 
     let written = false;
+
+    // 1. Try inside composer
     for (const sel of selectors) {
       try {
-        await composer.waitForSelector(sel, { visible: true, timeout: 8000 });
+        await composer.waitForSelector(sel, { visible: true, timeout: 5000 });
         await composer.type(sel, captionText);
-        console.log("✍️ Caption written with selector:", sel);
+        console.log("✍️ Caption লিখা হয়েছে inside composer:", sel);
         written = true;
         break;
-      } catch {
-        console.log(`⚠️ Selector not found: ${sel}`);
+      } catch {}
+    }
+
+    // 2. Try on main page context
+    if (!written) {
+      for (const sel of selectors) {
+        try {
+          await page.waitForSelector(sel, { visible: true, timeout: 5000 });
+          await page.type(sel, captionText);
+          console.log("✍️ Caption লিখা হয়েছে on main page:", sel);
+          written = true;
+          break;
+        } catch {}
       }
     }
 
-    if (!written) throw new Error("❌ No caption selector matched!");
+    if (!written) throw new Error("❌ Caption box not found in composer or page!");
 
   } catch (err) {
     console.error("❌ Caption error:", err);
