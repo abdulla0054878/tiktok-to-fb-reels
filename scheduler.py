@@ -1,36 +1,36 @@
 import os
 import time
-import schedule
 import json
+import schedule
 from yt_dlp import YoutubeDL
 from drive_upload import upload_file
 from fb_post import post_video_file
 
-# TikTok profile link
+# TikTok profile link Railway ENV থেকে নেবে
 TIKTOK_PROFILE = os.getenv("TIKTOK_PROFILE")
 if not TIKTOK_PROFILE:
-    raise RuntimeError("❌ 'TIKTOK_PROFILE' variable সেট করা হয়নি!")
+    raise RuntimeError("❌ 'TIKTOK_PROFILE' variable Railway-তে সেট করা হয়নি!")
 
 seen_ids = set()
 
-# ---------- নেটওয়ার্ক কনফিগ (Cookies + Proxy) ----------
+# Cookies optional
 COOKIEFILE = None
 cookies_raw = os.getenv("TIKTOK_COOKIES", "").strip()
 if cookies_raw:
     COOKIEFILE = "/tmp/tiktok_cookies.txt"
     with open(COOKIEFILE, "w") as f:
         f.write(cookies_raw)
-    print("🍪 Using TikTok cookies file:", COOKIEFILE)
+    print("🍪 TikTok cookies file created at:", COOKIEFILE)
 
+# Proxy optional
 PROXY_URL = os.getenv("PROXY_URL", "").strip()
 if PROXY_URL:
     print("🌐 Using Proxy:", PROXY_URL)
 
-# ---------- মূল কাজ ----------
 def check_new_tiktok_videos():
     print("🔍 Checking TikTok profile:", TIKTOK_PROFILE)
     try:
-        # Profile থেকে ভিডিও লিস্ট আনা
+        # সর্বশেষ ভিডিও Metadata আনার জন্য
         ydl_opts = {
             "extract_flat": True,
             "quiet": True,
@@ -41,11 +41,12 @@ def check_new_tiktok_videos():
                               "Chrome/117.0.0.0 Safari/537.36"
             }
         }
-        if COOKIEFILE:  # যদি Railway-তে cookies দেয়া থাকে
+        if COOKIEFILE:
             ydl_opts["cookiefile"] = COOKIEFILE
-        if PROXY_URL:   # যদি proxy দেয়া থাকে
+        if PROXY_URL:
             ydl_opts["proxy"] = PROXY_URL
 
+        # Entry Fetch
         with YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(TIKTOK_PROFILE, download=False)
             entries = info.get("entries", [])
@@ -56,16 +57,17 @@ def check_new_tiktok_videos():
             latest = entries[0]
             vid_id = latest.get("id")
             url = latest.get("url")
+            title = latest.get("title", "")
 
-            # নতুন ভিডিও কিনা চেক করো
+            # নতুন ভিডিও কিনা চেক
             if not vid_id or vid_id in seen_ids:
-                print("⏳ নতুন ভিডিও নাই")
+                print("⏳ নতুন ভিডিও নেই")
                 return
 
-            print("✨ New video found:", url)
+            print("✨ নতুন ভিডিও পাওয়া গেছে:", url)
             seen_ids.add(vid_id)
 
-            # ---------- ডাউনলোড ----------
+            # ---------- Download ----------
             filepath = f"/tmp/{vid_id}.mp4"
             dl_opts = {
                 "outtmpl": filepath,
@@ -83,30 +85,30 @@ def check_new_tiktok_videos():
 
             with YoutubeDL(dl_opts) as ydl2:
                 ydl2.download([url])
-            print("📥 Downloaded:", filepath)
+            print("📥 ডাউনলোড হয়েছে:", filepath)
 
-            # ---------- Drive Upload ----------
+            # ---------- Google Drive Upload ----------
             meta = upload_file(filepath,
                                filename=os.path.basename(filepath),
                                make_public=False)
-            print("☁ Uploaded to Drive:", meta)
+            print("☁️ Uploaded to Drive:", meta)
 
             # ---------- Facebook Upload ----------
             fb_res = post_video_file(filepath,
-                                     title=latest.get("title", ""),
+                                     title=title,   # TikTok ভিডিওর টাইটেল যাবে caption হিসেবে
                                      description="")
-            print("📘 Uploaded to FB:", fb_res)
+            print("📘 Posted to Facebook:", fb_res)
 
-            # লোকাল ফাইল ডিলিট
             os.remove(filepath)
 
     except Exception as e:
         print("❌ Error:", str(e))
 
-# ---------- Schedule ----------
+# প্রতি ৫ মিনিটে চেক
 schedule.every(5).minutes.do(check_new_tiktok_videos)
 
-print("🚀 TikTok Worker started | Profile:", TIKTOK_PROFILE)
+print("🚀 TikTok Worker started for profile:", TIKTOK_PROFILE)
+
 while True:
     schedule.run_pending()
     time.sleep(5)
