@@ -17,8 +17,7 @@ const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
   let browser;
   try {
     browser = await puppeteer.launch({
-      executablePath:
-        process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
       headless: true,
       args: [
         "--no-sandbox",
@@ -40,24 +39,17 @@ const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
     if (cookiesJSON) {
       let cookies = JSON.parse(cookiesJSON);
 
-      // 🔥 Normalize/remove sameSite
-      cookies = cookies.map((c) => {
-        if (c.sameSite) {
-          const v = String(c.sameSite).toLowerCase();
-          if (v === "lax") c.sameSite = "Lax";
-          else if (v === "strict") c.sameSite = "Strict";
-          else if (v === "none") c.sameSite = "None";
-          else {
-            console.log("⚠️ Dropping invalid sameSite:", c.sameSite);
-            delete c.sameSite; // ❌ Invalid হলে বাদ দিতে হবে
-          }
+      // 🚨 Force remove sameSite from all cookies
+      cookies = cookies.map(c => {
+        if ("sameSite" in c) {
+          delete c.sameSite;
         }
         return c;
       });
 
-      console.log("🍪 Cookies parsed:", cookies.length, "items after cleanup");
+      console.log("🍪 Cookies parsed:", cookies.length, "items (all sameSite removed)");
       await page.setCookie(...cookies);
-      console.log("✅ Cookies applied!");
+      console.log("✅ Cookies applied safely!");
     } else {
       console.error("⚠️ FB_COOKIES env missing!");
     }
@@ -90,7 +82,7 @@ const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
       console.log("✅ Switched into Page Context!");
       await delay(5000);
     } else {
-      console.log("ℹ️ No 'Switch Now' button (maybe already Page context)");
+      console.log("ℹ️ No 'Switch Now' button (maybe already in Page context)");
     }
   } catch (err) {
     console.error("❌ Error clicking Switch Now:", err);
