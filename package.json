@@ -2,9 +2,6 @@
   "name": "fb-reels-bot",
   "version": "1.0.0",
   "main": "puppeteer_uploader.js",
-  "scripts": {
-    "start": "node puppeteer_uploader.js"
-  },
   "dependencies": {
     "puppeteer": "^22.0.0"
   }
