@@ -35,7 +35,7 @@ const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
 
   const page = await browser.newPage();
 
-  // --- Cookies ---
+  // --- Apply Cookies ---
   try {
     if (cookiesJSON) {
       let cookies = JSON.parse(cookiesJSON);
@@ -43,11 +43,14 @@ const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
       // ⚡ Normalize sameSite values for Puppeteer
       cookies = cookies.map((c) => {
         if (c.sameSite) {
-          const v = String(c.sameSite).toLowerCase();
+          let v = String(c.sameSite).toLowerCase();
           if (v.includes("lax")) c.sameSite = "Lax";
           else if (v.includes("strict")) c.sameSite = "Strict";
           else if (v.includes("none")) c.sameSite = "None";
-          else delete c.sameSite; // মেলেনি → remove
+          else {
+            console.log("⚠️ Removing unsupported sameSite:", c.sameSite);
+            delete c.sameSite;
+          }
         }
         return c;
       });
@@ -79,7 +82,7 @@ const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
 
   await delay(5000);
 
-  // --- Switch Now Button ---
+  // --- Switch Now if needed ---
   try {
     const [btn] = await page.$x(
       "//div[@role='button'][.//span[text()='Switch Now']]"
@@ -89,7 +92,7 @@ const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
       console.log("✅ Switched into Page Context!");
       await delay(5000);
     } else {
-      console.log("ℹ️ No 'Switch Now' button (already in Page?)");
+      console.log("ℹ️ No 'Switch Now' button (maybe already Page context)");
     }
   } catch (err) {
     console.error("❌ Error clicking Switch Now:", err);
@@ -112,7 +115,7 @@ const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
 
   const composer = page.frames().find((f) => f.url().includes("reel"));
   if (!composer) {
-    console.error("❌ Composer iframe পাওয়া যায়নি! হয়তো লগইন হয়নি?");
+    console.error("❌ Composer iframe পাওয়া যায়নি (সম্ভবত লগইন হয়নি)!");
     await page.screenshot({ path: "composer_error.png" });
     await browser.close();
     process.exit(1);
@@ -131,7 +134,9 @@ const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
 
   // --- Write caption ---
   try {
-    await composer.waitForSelector('div[role="textbox"][contenteditable="true"]');
+    await composer.waitForSelector(
+      'div[role="textbox"][contenteditable="true"]'
+    );
     await composer.type(
       'div[role="textbox"][contenteditable="true"]',
       captionText
