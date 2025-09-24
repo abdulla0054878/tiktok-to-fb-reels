@@ -1,10 +1,11 @@
 const puppeteer = require("puppeteer");
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
 
-const PAGE_PROFILE_LINK = process.env.FB_PAGE_PROFILE;   // আপনার ফেসবুক পেজ প্রোফাইল URL দিন
+const PAGE_PROFILE_LINK = process.env.FB_PAGE_PROFILE;
 const cookiesJSON = process.env.FB_COOKIES;
 const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
 
+// Universal button click helper
 async function clickButtonByText(pageOrFrame, labels, context = "Page") {
   for (const label of labels) {
     const btns = await pageOrFrame.$$('div[role="button"], span');
@@ -13,12 +14,11 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
       if (txt && txt.trim().includes(label)) {
         await btn.click();
         console.log(`👉 Clicked button: ${label} [${context}]`);
-        await delay(6000); // প্রতিটি ক্লিকের পর ৬ সেকেন্ড delay
+        await delay(6000); // delay after click
         return true;
       }
     }
   }
-  console.log(`⚠️ Button not found: ${labels.join(" / ")} [${context}]`);
   return false;
 }
 
@@ -35,8 +35,7 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
   try {
     browser = await puppeteer.launch({
       headless: true,
-      executablePath:
-        process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
@@ -52,7 +51,7 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
 
   const page = await browser.newPage();
 
-  // --- Apply cookies ---
+  // Apply Cookies
   try {
     if (cookiesJSON) {
       let cookies = JSON.parse(cookiesJSON);
@@ -71,40 +70,22 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
     process.exit(1);
   }
 
-  // --- Open FB Page Profile ---
-  try {
-    console.log("🌐 Opening FB Page Profile:", PAGE_PROFILE_LINK);
-    await page.goto(PAGE_PROFILE_LINK, {
-      waitUntil: "networkidle2",
-      timeout: 60000,
-    });
-    await delay(8000);
-  } catch (err) {
-    console.error("❌ Cannot open FB Page Profile:", err);
-    await browser.close();
-    process.exit(1);
-  }
+  // Open FB Page Profile
+  console.log("🌐 Opening FB Page Profile:", PAGE_PROFILE_LINK);
+  await page.goto(PAGE_PROFILE_LINK, { waitUntil: "networkidle2", timeout: 60000 });
+  await delay(8000);
 
-  // --- Switch to Page Context ---
+  // Switch Profile → Page context
   console.log("🔄 Trying to switch into Page context...");
   await clickButtonByText(page, ["Switch Profile", "Switch Now", "সুইচ", "Use Page"], "SwitchProfile");
   await delay(8000);
 
-  // --- Open Reels Composer ---
-  try {
-    console.log("🎬 Opening Reels Composer...");
-    await page.goto("https://www.facebook.com/reels/create", {
-      waitUntil: "networkidle2",
-      timeout: 60000,
-    });
-    await delay(10000);
-  } catch (err) {
-    console.error("❌ Cannot open Reels composer:", err);
-    await browser.close();
-    process.exit(1);
-  }
+  // Open Reels Composer
+  console.log("🎬 Opening Reels Composer...");
+  await page.goto("https://www.facebook.com/reels/create", { waitUntil: "networkidle2", timeout: 60000 });
+  await delay(10000);
 
-  // --- Detect composer (iframe vs page) ---
+  // Detect composer (iframe vs page)
   let composer = page.frames().find((f) => f.url().includes("reel"));
   if (!composer) {
     console.warn("⚠️ Composer iframe not found, using main PAGE context");
@@ -113,11 +94,11 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
     console.log("✅ Composer iframe detected");
   }
 
-  // --- Upload Video ---
+  // Upload Video
   try {
     let fileInput = await composer.$('input[type=file][accept*="video"]');
     if (!fileInput) fileInput = await page.$('input[type=file][accept*="video"]');
-    if (!fileInput) throw new Error("File input not found for video!");
+    if (!fileInput) throw new Error("❌ File input not found!");
 
     await fileInput.uploadFile(videoPath);
     console.log("📤 Video attached:", videoPath);
@@ -128,16 +109,16 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
     process.exit(1);
   }
 
-  // --- Workflow Next → Next ---
+  // Next → Next
   await clickButtonByText(composer, ["Next", "পরবর্তী"], "Composer");
   await clickButtonByText(composer, ["Next", "পরবর্তী"], "Composer");
 
-  // --- Caption (optional) ---
+  // Caption (skip if not found)
   try {
-    const captionBox = await composer.waitForSelector(
-      'div[role="textbox"][contenteditable="true"]',
-      { visible: true, timeout: 60000 }
-    );
+    const captionBox = await composer.waitForSelector('div[role="textbox"][contenteditable="true"]', {
+      visible: true,
+      timeout: 30000,
+    });
     await captionBox.type(captionText, { delay: 50 });
     console.log("✍️ Caption typed:", captionText);
     await delay(5000);
@@ -145,22 +126,23 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
     console.warn("⚠️ Caption box not found → skipping caption");
   }
 
-  // --- Publish ---
+  // Publish
   console.log("🚀 Looking for Publish button...");
-  let published = await clickButtonByText(composer, ["Publish", "প্রকাশ"], "Composer");
+  let published = await clickButtonByText(composer, ["Publish", "প্রকাশ", "Post", "Share now", "Done"], "Composer");
+
   if (!published) {
-    console.log("⚠️ Publish not found in composer, trying PAGE context");
-    published = await clickButtonByText(page, ["Publish", "প্রকাশ"], "Page");
+    console.log("⚠️ Publish not in composer, trying PAGE...");
+    published = await clickButtonByText(page, ["Publish", "প্রকাশ", "Post", "Share now", "Done"], "Page");
   }
 
   if (!published) {
     console.error("❌ Publish button not found anywhere!");
+    await page.screenshot({ path: "publish_error.png", fullPage: true });
     await browser.close();
     process.exit(1);
   }
 
-  console.log("✅ Reel published successfully!");
+  console.log("✅ Reel Published Successfully!");
   await delay(15000);
-
   await browser.close();
 })();
