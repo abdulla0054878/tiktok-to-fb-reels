@@ -6,14 +6,14 @@ from yt_dlp import YoutubeDL
 from drive_upload import upload_file
 from fb_post import post_video_file
 
-# TikTok profile link Railway ENV থেকে নেবে
+# TikTok profile link
 TIKTOK_PROFILE = os.getenv("TIKTOK_PROFILE")
 if not TIKTOK_PROFILE:
     raise RuntimeError("❌ 'TIKTOK_PROFILE' variable Railway-তে সেট করা হয়নি!")
 
 seen_ids = set()
 
-# Cookies optional
+# ---------- Cookiefile তৈরি (Railway ENV থেকে) ----------
 COOKIEFILE = None
 cookies_raw = os.getenv("TIKTOK_COOKIES", "").strip()
 if cookies_raw:
@@ -22,15 +22,10 @@ if cookies_raw:
         f.write(cookies_raw)
     print("🍪 TikTok cookies file created at:", COOKIEFILE)
 
-# Proxy optional
-PROXY_URL = os.getenv("PROXY_URL", "").strip()
-if PROXY_URL:
-    print("🌐 Using Proxy:", PROXY_URL)
-
 def check_new_tiktok_videos():
     print("🔍 Checking TikTok profile:", TIKTOK_PROFILE)
     try:
-        # সর্বশেষ ভিডিও Metadata আনার জন্য
+        # শুধু ভিডিও তালিকা (metadata) আনার জন্য
         ydl_opts = {
             "extract_flat": True,
             "quiet": True,
@@ -43,10 +38,7 @@ def check_new_tiktok_videos():
         }
         if COOKIEFILE:
             ydl_opts["cookiefile"] = COOKIEFILE
-        if PROXY_URL:
-            ydl_opts["proxy"] = PROXY_URL
 
-        # Entry Fetch
         with YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(TIKTOK_PROFILE, download=False)
             entries = info.get("entries", [])
@@ -59,12 +51,11 @@ def check_new_tiktok_videos():
             url = latest.get("url")
             title = latest.get("title", "")
 
-            # নতুন ভিডিও কিনা চেক
             if not vid_id or vid_id in seen_ids:
-                print("⏳ নতুন ভিডিও নেই")
+                print("⏳ নতুন ভিডিও আসেনি")
                 return
 
-            print("✨ নতুন ভিডিও পাওয়া গেছে:", url)
+            print("✨ নতুন ভিডিও:", url)
             seen_ids.add(vid_id)
 
             # ---------- Download ----------
@@ -80,12 +71,10 @@ def check_new_tiktok_videos():
             }
             if COOKIEFILE:
                 dl_opts["cookiefile"] = COOKIEFILE
-            if PROXY_URL:
-                dl_opts["proxy"] = PROXY_URL
 
             with YoutubeDL(dl_opts) as ydl2:
                 ydl2.download([url])
-            print("📥 ডাউনলোড হয়েছে:", filepath)
+            print("📥 ডাউনলোড হয়েছে:", filepath)
 
             # ---------- Google Drive Upload ----------
             meta = upload_file(filepath,
@@ -95,7 +84,7 @@ def check_new_tiktok_videos():
 
             # ---------- Facebook Upload ----------
             fb_res = post_video_file(filepath,
-                                     title=title,   # TikTok ভিডিওর টাইটেল যাবে caption হিসেবে
+                                     title=title,
                                      description="")
             print("📘 Posted to Facebook:", fb_res)
 
