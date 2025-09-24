@@ -1,5 +1,4 @@
 const puppeteer = require("puppeteer");
-const fs = require("fs");
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
 
 const PAGE_PROFILE_LINK = process.env.FB_PAGE_PROFILE;
@@ -30,6 +29,7 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
     console.error("❌ ভিডিও path দিতে হবে (subprocess arg[2])!");
     process.exit(1);
   }
+
   console.log("▶️ Puppeteer starting...");
 
   let browser;
@@ -41,7 +41,7 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
-        "--disable-gpu"
+        "--disable-gpu",
       ],
     });
     console.log("✅ Browser launched OK");
@@ -57,7 +57,7 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
     if (cookiesJSON) {
       let cookies = JSON.parse(cookiesJSON);
       cookies = cookies.map(c => { delete c.sameSite; return c; });
-      console.log("🍪 Cookies parsed:", cookies.length);
+      console.log("🍪 Cookies parsed:", cookies.length, "(sameSite removed)");
       await page.setCookie(...cookies);
       console.log("✅ Cookies applied!");
     } else {
@@ -80,11 +80,11 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
     process.exit(1);
   }
 
-  // --- Switch to Page if needed ---
+  // --- Switch Now ---
   await clickButtonByText(page, ["Switch Now", "সুইচ"], "SwitchProfile");
   await delay(5000);
 
-  // --- Open Composer ---
+  // --- Composer ---
   try {
     console.log("🎬 Opening Reels composer...");
     await page.goto("https://www.facebook.com/reels/create", { waitUntil: "networkidle2", timeout: 60000 });
@@ -95,72 +95,53 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
     process.exit(1);
   }
 
-  const composer = page.frames().find(f => f.url().includes("reel"));
-  if (!composer) {
-    console.error("❌ Composer iframe পাওয়া যায়নি!");
-    await page.screenshot({ path: "composer_error.png", fullPage: true });
-    await browser.close();
-    process.exit(1);
-  }
-
   // --- Upload Video ---
   try {
+    // কেননা ভিডিও আপলোড box Iframe এ থাকে
+    const composer = page.frames().find(f => f.url().includes("reel"));
+    if (!composer) throw new Error("❌ Composer iframe পাওয়া যায়নি!");
+
     const fileInput = await composer.$('input[type=file][accept*="video"]');
     if (!fileInput) throw new Error("⚠️ File input পাওয়া গেল না!");
     await fileInput.uploadFile(videoPath);
     console.log("📤 ভিডিও attach complete:", videoPath);
+
+    // Next → Next
+    await clickButtonByText(composer, ["Next", "পরবর্তী"], "Composer");
+    await clickButtonByText(composer, ["Next", "পরবর্তী"], "Composer");
+
   } catch (err) {
     console.error("❌ Error attaching video:", err);
     await browser.close();
     process.exit(1);
   }
 
-  // --- Next → Next ---
-  await clickButtonByText(composer, ["Next", "পরবর্তী"], "Composer");
-  await clickButtonByText(composer, ["Next", "পরবর্তী"], "Composer");
-
   // --- Caption Step ---
   try {
     console.log("⌛ Waiting for caption input…");
 
+    // এখনকার সবচেয়ে কাজের selector
     const selectors = [
+      'textarea[aria-label="Describe your reel"]',  // ✅ confirmed from your screenshot
       '[data-testid="media-attachment-text-input"]',
       'div[aria-label*="description"][contenteditable="true"]',
       'div[role="textbox"][contenteditable="true"]',
-      'div[data-contents="true"][contenteditable="true"]',
-      'textarea'
+      'div[data-contents="true"][contenteditable="true"]'
     ];
 
     let written = false;
 
     await page.screenshot({ path: "before_caption.png", fullPage: true });
 
-    // 1️⃣ Try inside composer
     for (const sel of selectors) {
       try {
-        const box = await composer.waitForSelector(sel, { visible: true, timeout: 10000 });
+        const box = await page.waitForSelector(sel, { visible: true, timeout: 20000 });
         await box.type(captionText, { delay: 50 });
-        console.log("✍️ Caption লেখা হয়েছে (composer):", sel);
+        console.log("✍️ Caption লেখা হয়েছে:", sel);
         written = true;
         break;
       } catch {
-        console.log("⚠️ Not in composer:", sel);
-      }
-    }
-
-    // 2️⃣ Fallback → Page context
-    if (!written) {
-      console.log("🔄 Trying page context (outside composer)...");
-      for (const sel of selectors) {
-        try {
-          const box = await page.waitForSelector(sel, { visible: true, timeout: 15000 });
-          await box.type(captionText, { delay: 50 });
-          console.log("✍️ Caption লেখা হয়েছে (page):", sel);
-          written = true;
-          break;
-        } catch {
-          console.log("⚠️ Not in page:", sel);
-        }
+        console.log("⚠️ Not found:", sel);
       }
     }
 
@@ -174,9 +155,13 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
   }
 
   // --- Publish ---
-  await clickButtonByText(composer, ["Publish", "প্রকাশ"], "Composer");
+  try {
+    await clickButtonByText(page, ["Publish", "প্রকাশ"], "Composer");
+    console.log("✅ Reel upload finished!");
+  } catch (err) {
+    console.error("❌ Publish error:", err);
+  }
 
-  console.log("✅ Reel upload finished!");
   await delay(15000);
   await browser.close();
 })();
