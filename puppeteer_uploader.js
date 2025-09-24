@@ -6,7 +6,7 @@ const PAGE_PROFILE_LINK = process.env.FB_PAGE_PROFILE;
 const cookiesJSON = process.env.FB_COOKIES;
 const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
 
-// Helper: Button click by text
+// Universal button click helper
 async function clickButtonByText(pageOrFrame, labels, context = "Page") {
   for (const label of labels) {
     const btns = await pageOrFrame.$$('div[role="button"], span');
@@ -30,7 +30,6 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
     console.error("❌ ভিডিও path দিতে হবে (subprocess arg[2])!");
     process.exit(1);
   }
-
   console.log("▶️ Puppeteer starting...");
 
   let browser;
@@ -42,7 +41,7 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
-        "--disable-gpu",
+        "--disable-gpu"
       ],
     });
     console.log("✅ Browser launched OK");
@@ -58,7 +57,7 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
     if (cookiesJSON) {
       let cookies = JSON.parse(cookiesJSON);
       cookies = cookies.map(c => { delete c.sameSite; return c; });
-      console.log("🍪 Cookies parsed:", cookies.length, "(sameSite removed)");
+      console.log("🍪 Cookies parsed:", cookies.length);
       await page.setCookie(...cookies);
       console.log("✅ Cookies applied!");
     } else {
@@ -81,11 +80,11 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
     process.exit(1);
   }
 
-  // --- Switch Page ---
+  // --- Switch to Page if needed ---
   await clickButtonByText(page, ["Switch Now", "সুইচ"], "SwitchProfile");
   await delay(5000);
 
-  // --- Open Reels Composer ---
+  // --- Open Composer ---
   try {
     console.log("🎬 Opening Reels composer...");
     await page.goto("https://www.facebook.com/reels/create", { waitUntil: "networkidle2", timeout: 60000 });
@@ -120,7 +119,7 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
   await clickButtonByText(composer, ["Next", "পরবর্তী"], "Composer");
   await clickButtonByText(composer, ["Next", "পরবর্তী"], "Composer");
 
-  // --- Caption Step (With Updated Fallback) ---
+  // --- Caption Step ---
   try {
     console.log("⌛ Waiting for caption input…");
 
@@ -134,38 +133,38 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
 
     let written = false;
 
-    // Debug screenshot
     await page.screenshot({ path: "before_caption.png", fullPage: true });
 
-    // Inside composer
+    // 1️⃣ Try inside composer
     for (const sel of selectors) {
       try {
-        const box = await composer.waitForSelector(sel, { visible: true, timeout: 20000 });
+        const box = await composer.waitForSelector(sel, { visible: true, timeout: 10000 });
         await box.type(captionText, { delay: 50 });
         console.log("✍️ Caption লেখা হয়েছে (composer):", sel);
         written = true;
         break;
       } catch {
-        console.log("⚠️ Not found in composer:", sel);
+        console.log("⚠️ Not in composer:", sel);
       }
     }
 
-    // On main page
+    // 2️⃣ Fallback → Page context
     if (!written) {
+      console.log("🔄 Trying page context (outside composer)...");
       for (const sel of selectors) {
         try {
-          const box = await page.waitForSelector(sel, { visible: true, timeout: 20000 });
+          const box = await page.waitForSelector(sel, { visible: true, timeout: 15000 });
           await box.type(captionText, { delay: 50 });
           console.log("✍️ Caption লেখা হয়েছে (page):", sel);
           written = true;
           break;
         } catch {
-          console.log("⚠️ Not found in main page:", sel);
+          console.log("⚠️ Not in page:", sel);
         }
       }
     }
 
-    if (!written) throw new Error("❌ Caption box not found in composer or page!");
+    if (!written) throw new Error("❌ Caption box not found anywhere!");
 
   } catch (err) {
     console.error("❌ Caption error:", err);
