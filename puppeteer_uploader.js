@@ -40,22 +40,22 @@ const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
     if (cookiesJSON) {
       let cookies = JSON.parse(cookiesJSON);
 
-      // 🔥 Fix sameSite issue
+      // 🔥 Normalize/remove sameSite
       cookies = cookies.map((c) => {
         if (c.sameSite) {
           const v = String(c.sameSite).toLowerCase();
-          if (v.includes("lax")) c.sameSite = "Lax";
-          else if (v.includes("strict")) c.sameSite = "Strict";
-          else if (v.includes("none")) c.sameSite = "None";
+          if (v === "lax") c.sameSite = "Lax";
+          else if (v === "strict") c.sameSite = "Strict";
+          else if (v === "none") c.sameSite = "None";
           else {
             console.log("⚠️ Dropping invalid sameSite:", c.sameSite);
-            delete c.sameSite; // Invalid হলে ফিল্ড মুছে ফেলবো
+            delete c.sameSite; // ❌ Invalid হলে বাদ দিতে হবে
           }
         }
         return c;
       });
 
-      console.log("🍪 Cookies parsed:", cookies.length, "items");
+      console.log("🍪 Cookies parsed:", cookies.length, "items after cleanup");
       await page.setCookie(...cookies);
       console.log("✅ Cookies applied!");
     } else {
@@ -84,9 +84,7 @@ const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
 
   // --- Switch Now if needed ---
   try {
-    const [btn] = await page.$x(
-      "//div[@role='button'][.//span[text()='Switch Now']]"
-    );
+    const [btn] = await page.$x("//div[@role='button'][.//span[text()='Switch Now']]");
     if (btn) {
       await btn.click();
       console.log("✅ Switched into Page Context!");
@@ -134,13 +132,8 @@ const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
 
   // --- Write caption ---
   try {
-    await composer.waitForSelector(
-      'div[role="textbox"][contenteditable="true"]'
-    );
-    await composer.type(
-      'div[role="textbox"][contenteditable="true"]',
-      captionText
-    );
+    await composer.waitForSelector('div[role="textbox"][contenteditable="true"]');
+    await composer.type('div[role="textbox"][contenteditable="true"]', captionText);
     console.log("✍️ Caption written:", captionText);
   } catch (err) {
     console.error("❌ Error writing caption:", err);
