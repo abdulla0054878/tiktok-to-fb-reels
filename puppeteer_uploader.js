@@ -1,11 +1,12 @@
 const puppeteer = require("puppeteer");
+const fs = require("fs");
 const delay = (ms) => new Promise((res) => setTimeout(res, ms));
 
 const PAGE_PROFILE_LINK = process.env.FB_PAGE_PROFILE;
 const cookiesJSON = process.env.FB_COOKIES;
 const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
 
-// Universal button click helper
+// Helper: Button click by text
 async function clickButtonByText(pageOrFrame, labels, context = "Page") {
   for (const label of labels) {
     const btns = await pageOrFrame.$$('div[role="button"], span');
@@ -52,12 +53,12 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
 
   const page = await browser.newPage();
 
-  // --- Apply Cookies ---
+  // --- Cookies apply ---
   try {
     if (cookiesJSON) {
       let cookies = JSON.parse(cookiesJSON);
       cookies = cookies.map(c => { delete c.sameSite; return c; });
-      console.log("🍪 Cookies parsed:", cookies.length, "(sameSite removed)");
+      console.log("🍪 Cookies parsed:", cookies.length);
       await page.setCookie(...cookies);
       console.log("✅ Cookies applied!");
     } else {
@@ -124,6 +125,8 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
     console.log("⌛ Waiting for caption input…");
 
     const selectors = [
+      '[data-testid="media-attachment-text-input"]',
+      'div[aria-label="Write a description…"][contenteditable="true"]',
       'textarea[aria-label="Describe your reel"]',
       'div[role="textbox"][contenteditable="true"]',
       'div[data-contents="true"][contenteditable="true"]'
@@ -131,27 +134,34 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
 
     let written = false;
 
+    // Debug screenshot before caption
+    await page.screenshot({ path: "before_caption.png", fullPage: true });
+
     // 1. Try inside composer
     for (const sel of selectors) {
       try {
-        await composer.waitForSelector(sel, { visible: true, timeout: 5000 });
-        await composer.type(sel, captionText);
+        const box = await composer.waitForSelector(sel, { visible: true, timeout: 20000 });
+        await box.type(captionText, { delay: 50 });
         console.log("✍️ Caption লিখা হয়েছে inside composer:", sel);
         written = true;
         break;
-      } catch {}
+      } catch (e) {
+        console.log("⚠️ Not found in composer:", sel);
+      }
     }
 
     // 2. Try on main page context
     if (!written) {
       for (const sel of selectors) {
         try {
-          await page.waitForSelector(sel, { visible: true, timeout: 5000 });
-          await page.type(sel, captionText);
+          const box = await page.waitForSelector(sel, { visible: true, timeout: 20000 });
+          await box.type(captionText, { delay: 50 });
           console.log("✍️ Caption লিখা হয়েছে on main page:", sel);
           written = true;
           break;
-        } catch {}
+        } catch (e) {
+          console.log("⚠️ Not found in main page:", sel);
+        }
       }
     }
 
