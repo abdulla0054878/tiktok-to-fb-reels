@@ -2,15 +2,7 @@ import subprocess
 import os
 
 def post_video_file(filepath, title="", description=""):
-    """
-    Facebook Page এ ভিডিও পোস্ট করার জন্য Puppeteer uploader কল করবে।
-    Args:
-        filepath (str): ডাউনলোডকৃত ভিডিওর লোকাল path (/tmp/xxx.mp4)
-        title (str): TikTok ভিডিওর শিরোনাম (এটাই caption হবে)
-        description (str): extra কিছু লাইন (optional)
-    """
     try:
-        # যদি title খালি থাকে তাহলে filename বসানো হবে
         if not title:
             title = os.path.basename(filepath).replace(".mp4", "")
 
@@ -18,19 +10,24 @@ def post_video_file(filepath, title="", description=""):
         if description:
             caption += f"\n\n{description}"
 
-        print("▶️ Puppeteer uploader call হচ্ছে... Caption:", caption)
+        print("▶️ Puppeteer uploader call হচ্ছে... Caption:", caption, flush=True)
 
-        # Puppeteer uploader কল করো
+        env = os.environ.copy()
+        env["FB_CAPTION"] = caption
+        env["FB_COOKIES"] = os.getenv("FB_COOKIES", "")
+        env["FB_PAGE_PROFILE"] = os.getenv("FB_PAGE_PROFILE", "")
+
         result = subprocess.run(
-            ["node", "puppeteer_uploader.js", filepath, caption],
+            ["node", "puppeteer_uploader.js", filepath],
             capture_output=True,
-            text=True
+            text=True,
+            env=env
         )
 
-        print("FB Puppeteer Output:", result.stdout)
-        if result.stderr:
-            print("FB Puppeteer Error:", result.stderr)
+        if result.returncode != 0:
+            return {"status": "error", "stderr": result.stderr, "stdout": result.stdout}
 
         return {"status": "ok", "caption": caption, "output": result.stdout}
+
     except Exception as e:
         return {"status": "error", "error": str(e)}
