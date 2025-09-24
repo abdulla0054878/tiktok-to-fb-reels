@@ -53,12 +53,12 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
 
   const page = await browser.newPage();
 
-  // --- Cookies apply ---
+  // --- Apply Cookies ---
   try {
     if (cookiesJSON) {
       let cookies = JSON.parse(cookiesJSON);
       cookies = cookies.map(c => { delete c.sameSite; return c; });
-      console.log("🍪 Cookies parsed:", cookies.length);
+      console.log("🍪 Cookies parsed:", cookies.length, "(sameSite removed)");
       await page.setCookie(...cookies);
       console.log("✅ Cookies applied!");
     } else {
@@ -81,11 +81,11 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
     process.exit(1);
   }
 
-  // --- Switch Now ---
+  // --- Switch Page ---
   await clickButtonByText(page, ["Switch Now", "সুইচ"], "SwitchProfile");
   await delay(5000);
 
-  // --- Composer ---
+  // --- Open Reels Composer ---
   try {
     console.log("🎬 Opening Reels composer...");
     await page.goto("https://www.facebook.com/reels/create", { waitUntil: "networkidle2", timeout: 60000 });
@@ -98,7 +98,7 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
 
   const composer = page.frames().find(f => f.url().includes("reel"));
   if (!composer) {
-    console.error("❌ Composer iframe পাওয়া যায়নি (সম্ভবত লগইন পেজ এসেছে)!");
+    console.error("❌ Composer iframe পাওয়া যায়নি!");
     await page.screenshot({ path: "composer_error.png", fullPage: true });
     await browser.close();
     process.exit(1);
@@ -120,46 +120,46 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
   await clickButtonByText(composer, ["Next", "পরবর্তী"], "Composer");
   await clickButtonByText(composer, ["Next", "পরবর্তী"], "Composer");
 
-  // --- Caption Step with fallback ---
+  // --- Caption Step (With Updated Fallback) ---
   try {
     console.log("⌛ Waiting for caption input…");
 
     const selectors = [
       '[data-testid="media-attachment-text-input"]',
-      'div[aria-label="Write a description…"][contenteditable="true"]',
-      'textarea[aria-label="Describe your reel"]',
+      'div[aria-label*="description"][contenteditable="true"]',
       'div[role="textbox"][contenteditable="true"]',
-      'div[data-contents="true"][contenteditable="true"]'
+      'div[data-contents="true"][contenteditable="true"]',
+      'textarea'
     ];
 
     let written = false;
 
-    // Debug screenshot before caption
+    // Debug screenshot
     await page.screenshot({ path: "before_caption.png", fullPage: true });
 
-    // 1. Try inside composer
+    // Inside composer
     for (const sel of selectors) {
       try {
         const box = await composer.waitForSelector(sel, { visible: true, timeout: 20000 });
         await box.type(captionText, { delay: 50 });
-        console.log("✍️ Caption লিখা হয়েছে inside composer:", sel);
+        console.log("✍️ Caption লেখা হয়েছে (composer):", sel);
         written = true;
         break;
-      } catch (e) {
+      } catch {
         console.log("⚠️ Not found in composer:", sel);
       }
     }
 
-    // 2. Try on main page context
+    // On main page
     if (!written) {
       for (const sel of selectors) {
         try {
           const box = await page.waitForSelector(sel, { visible: true, timeout: 20000 });
           await box.type(captionText, { delay: 50 });
-          console.log("✍️ Caption লিখা হয়েছে on main page:", sel);
+          console.log("✍️ Caption লেখা হয়েছে (page):", sel);
           written = true;
           break;
-        } catch (e) {
+        } catch {
           console.log("⚠️ Not found in main page:", sel);
         }
       }
