@@ -5,16 +5,16 @@ const PAGE_PROFILE_LINK = process.env.FB_PAGE_PROFILE;
 const cookiesJSON = process.env.FB_COOKIES;
 const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
 
-// Universal button click helper
+// Helper: Click Button by Text
 async function clickButtonByText(pageOrFrame, labels, context = "Page") {
   for (const label of labels) {
     const btns = await pageOrFrame.$$('div[role="button"], span');
     for (const btn of btns) {
-      const txt = await pageOrFrame.evaluate((el) => el.innerText, btn);
+      const txt = await pageOrFrame.evaluate(el => el.innerText, btn);
       if (txt && txt.trim().includes(label)) {
         await btn.click();
         console.log(`👉 Clicked button: ${label} [${context}]`);
-        await delay(6000); // delay after click
+        await delay(5000);
         return true;
       }
     }
@@ -36,12 +36,7 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
     browser = await puppeteer.launch({
       headless: true,
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
-      args: [
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-gpu",
-      ],
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"]
     });
     console.log("✅ Browser launched successfully");
   } catch (err) {
@@ -53,16 +48,11 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
 
   // Apply Cookies
   try {
-    if (cookiesJSON) {
-      let cookies = JSON.parse(cookiesJSON);
-      cookies = cookies.map((c) => {
-        delete c.sameSite;
-        return c;
-      });
+    let cookies = JSON.parse(cookiesJSON || "[]");
+    if (cookies.length) {
+      cookies = cookies.map(c => { delete c.sameSite; return c; });
       await page.setCookie(...cookies);
       console.log("✅ Cookies applied:", cookies.length);
-    } else {
-      console.error("⚠️ FB_COOKIES missing!");
     }
   } catch (err) {
     console.error("❌ Cookie parse failed:", err);
@@ -73,22 +63,22 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
   // Open FB Page Profile
   console.log("🌐 Opening FB Page Profile:", PAGE_PROFILE_LINK);
   await page.goto(PAGE_PROFILE_LINK, { waitUntil: "networkidle2", timeout: 60000 });
-  await delay(8000);
+  await delay(6000);
 
-  // Switch Profile → Page context
-  console.log("🔄 Trying to switch into Page context...");
+  // Switch to Page context if needed
+  console.log("🔄 Switching into Page context...");
   await clickButtonByText(page, ["Switch Profile", "Switch Now", "সুইচ", "Use Page"], "SwitchProfile");
-  await delay(8000);
+  await delay(6000);
 
   // Open Reels Composer
   console.log("🎬 Opening Reels Composer...");
   await page.goto("https://www.facebook.com/reels/create", { waitUntil: "networkidle2", timeout: 60000 });
   await delay(10000);
 
-  // Detect composer (iframe vs page)
-  let composer = page.frames().find((f) => f.url().includes("reel"));
+  // Detect composer (iframe vs page context)
+  let composer = page.frames().find(f => f.url().includes("reel"));
   if (!composer) {
-    console.warn("⚠️ Composer iframe not found, using main PAGE context");
+    console.warn("⚠️ Composer iframe not found, fallback → using PAGE context");
     composer = page;
   } else {
     console.log("✅ Composer iframe detected");
@@ -113,26 +103,44 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
   await clickButtonByText(composer, ["Next", "পরবর্তী"], "Composer");
   await clickButtonByText(composer, ["Next", "পরবর্তী"], "Composer");
 
-  // Caption (skip if not found)
+  // Caption (optional)
   try {
-    const captionBox = await composer.waitForSelector('div[role="textbox"][contenteditable="true"]', {
-      visible: true,
-      timeout: 30000,
-    });
+    const captionBox = await composer.waitForSelector('div[role="textbox"][contenteditable="true"]', { visible: true, timeout: 20000 });
     await captionBox.type(captionText, { delay: 50 });
     console.log("✍️ Caption typed:", captionText);
-    await delay(5000);
-  } catch (err) {
-    console.warn("⚠️ Caption box not found → skipping caption");
+  } catch {
+    console.warn("⚠️ Caption box not found → skipping caption step");
   }
 
-  // Publish
+  // Publish Step
   console.log("🚀 Looking for Publish button...");
-  let published = await clickButtonByText(composer, ["Publish", "প্রকাশ", "Post", "Share now", "Done"], "Composer");
+  let published = false;
 
+  // Common text selectors
+  const textLabels = ["Publish", "প্রকাশ", "Post", "Share", "Share now", "Done"];
+  published = await clickButtonByText(composer, textLabels, "Composer");
+
+  // Fallback to page context
   if (!published) {
-    console.log("⚠️ Publish not in composer, trying PAGE...");
-    published = await clickButtonByText(page, ["Publish", "প্রকাশ", "Post", "Share now", "Done"], "Page");
+    console.log("⚠️ Publish not found in composer, trying PAGE...");
+    published = await clickButtonByText(page, textLabels, "Page");
+  }
+
+  // As a last try - aria-label
+  if (!published) {
+    console.log("⚠️ Trying aria-label based selectors...");
+    const ariaSelectors = ['div[aria-label="Publish"]','div[aria-label="Post"]','div[aria-label="Share"]'];
+    for (const sel of ariaSelectors) {
+      try {
+        const btn = await page.waitForSelector(sel, { visible: true, timeout: 5000 });
+        if (btn) {
+          await btn.click();
+          console.log("✅ Reel published via aria-label selector:", sel);
+          published = true;
+          break;
+        }
+      } catch {}
+    }
   }
 
   if (!published) {
