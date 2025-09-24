@@ -5,8 +5,8 @@ const PAGE_PROFILE_LINK = process.env.FB_PAGE_PROFILE;
 
 (async () => {
   const videoPath = process.argv[2];   // ভিডিও path
-  const captionText = process.argv[3] || "🚀 Auto Reel Upload";  // Caption
-  
+  const captionText = process.argv[3] || "🚀 Auto Reel Upload";  // ক্যাপশন
+
   if (!videoPath) {
     console.error("❌ ভিডিও path দিতে হবে!");
     process.exit(1);
@@ -29,11 +29,10 @@ const PAGE_PROFILE_LINK = process.env.FB_PAGE_PROFILE;
 
   const page = await browser.newPage();
 
-  // Page profile ওপেন
+  // FB Page ওপেন করো এবং Switch Now প্রয়োজন হলে চাপো
   await page.goto(PAGE_PROFILE_LINK, { waitUntil: "networkidle2" });
   await delay(5000);
 
-  // "Switch Now" বাটন থাকলে চাপো
   const [btn] = await page.$x("//div[@role='button'][.//span[text()='Switch Now']]");
   if (btn) {
     await btn.click();
@@ -42,7 +41,7 @@ const PAGE_PROFILE_LINK = process.env.FB_PAGE_PROFILE;
 
   await delay(8000);
 
-  // Reels composer ওপেন করো
+  // Reels Composer ওপেন
   await page.goto("https://www.facebook.com/reels/create", { waitUntil: "networkidle2" });
   await delay(7000);
 
@@ -53,17 +52,17 @@ const PAGE_PROFILE_LINK = process.env.FB_PAGE_PROFILE;
     process.exit(1);
   }
 
-  // ভিডিও attach
+  // ভিডিও Attach
   const fileInput = await composer.$('input[type=file][accept*="video"]');
   await fileInput.uploadFile(videoPath);
   console.log("📤 ভিডিও attach complete!");
 
-  // Caption বসানো
+  // Caption বসাও
   await composer.waitForSelector('div[role="textbox"][contenteditable="true"]');
   await composer.type('div[role="textbox"][contenteditable="true"]', captionText);
   console.log("✍️ Caption লিখা হয়েছে:", captionText);
 
-  // Publish বাটন
+  // Publish
   const pubBtns = await composer.$x("//div[@role='button']//span[contains(text(),'Publish') or contains(text(),'প্রকাশ')]");
   if (pubBtns[0]) {
     await pubBtns[0].click();
