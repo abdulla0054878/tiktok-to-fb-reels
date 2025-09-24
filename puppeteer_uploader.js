@@ -1,13 +1,12 @@
 /**
- * puppeteer_uploader.js
- * -------------------------------------------------
- * Workflow:
- * 1. Open Page Profile (from ENV: FB_PAGE_PROFILE)
- * 2. Click the real "Switch Now" button (if present)
- * 3. Switch into Page mode
- * 4. Open https://www.facebook.com/reels/create
- * 5. Upload mp4 video (arg[2] from Python subprocess)
- * 6. Next → Next → Caption → Publish
+ * puppeteer_uploader.js (FINAL Railway Version)
+ * --------------------------------------------
+ * Flow:
+ * 1. Open FB Page Profile
+ * 2. Switch Now (if present)
+ * 3. Open Reels Composer
+ * 4. Upload TikTok-downloaded video
+ * 5. Next → Next → Caption → Publish
  */
 
 const puppeteer = require("puppeteer");
@@ -17,6 +16,9 @@ const PAGE_PROFILE_LINK = process.env.FB_PAGE_PROFILE;
 const cookiesJSON = process.env.FB_COOKIES;
 const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
 
+// -------------------
+// Helper → universal button click by label
+// -------------------
 async function clickButtonByText(pageOrFrame, labels, context = "Page") {
   for (const label of labels) {
     const btns = await pageOrFrame.$$('div[role="button"], span');
@@ -37,7 +39,7 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
 (async () => {
   const videoPath = process.argv[2];
   if (!videoPath) {
-    console.error("❌ ভিডিও path দিতে হবে (python থেকে arg[2] আসবে)!");
+    console.error("❌ ভিডিও path দিতে হবে (Python subprocess arg[2])!");
     process.exit(1);
   }
 
@@ -67,11 +69,8 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
   try {
     if (cookiesJSON) {
       let cookies = JSON.parse(cookiesJSON);
-
-      // remove invalid sameSite fields
       cookies = cookies.map(c => { delete c.sameSite; return c; });
-
-      console.log("🍪 Cookies parsed:", cookies.length, "items (sameSite removed)");
+      console.log("🍪 Cookies parsed:", cookies.length, "(sameSite removed)");
       await page.setCookie(...cookies);
       console.log("✅ Cookies applied!");
     } else {
@@ -83,37 +82,37 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
     process.exit(1);
   }
 
-  // --- Open Page Profile ---
+  // --- Open FB Page Profile ---
   try {
     console.log("🌐 Opening FB Page Profile:", PAGE_PROFILE_LINK);
     await page.goto(PAGE_PROFILE_LINK, { waitUntil: "networkidle2", timeout: 60000 });
     await delay(5000);
   } catch (err) {
-    console.error("❌ FB Page open error:", err);
+    console.error("❌ Page open error:", err);
     await browser.close();
     process.exit(1);
   }
 
-  // --- Switch Now (if button exists) ---
+  // --- Switch Now (if available) ---
   await clickButtonByText(page, ["Switch Now", "সুইচ"], "SwitchProfile");
   await delay(8000);
 
-  // --- Open Reels Creator ---
+  // --- Open Reels Composer ---
   try {
     console.log("🎬 Opening Reels composer...");
     await page.goto("https://www.facebook.com/reels/create", { waitUntil: "networkidle2", timeout: 60000 });
     await delay(7000);
   } catch (err) {
-    console.error("❌ Reels composer open error:", err);
+    console.error("❌ Composer open error:", err);
     await browser.close();
     process.exit(1);
   }
 
-  // --- Composer frame ---
+  // --- Find composer frame ---
   const composer = page.frames().find(f => f.url().includes("reel"));
   if (!composer) {
-    console.error("❌ Composer iframe পাওয়া যায়নি (সম্ভবত কুকিজ expired → login screen)");
-    await page.screenshot({ path: "composer_error.png" });
+    console.error("❌ Composer iframe পাওয়া যায়নি (সম্ভবত Cookies expire → login screen)");
+    await page.screenshot({ path: "composer_error.png", fullPage: true });
     await browser.close();
     process.exit(1);
   }
@@ -121,20 +120,20 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
   // --- Upload video ---
   try {
     const fileInput = await composer.$('input[type=file][accept*="video"]');
-    if (!fileInput) throw new Error("⚠️ File input পাওয়া গেল না");
+    if (!fileInput) throw new Error("⚠️ File input পাওয়া গেল না!");
     await fileInput.uploadFile(videoPath);
-    console.log("📤 ভিডিও attach complete!");
+    console.log("📤 ভিডিও attach complete:", videoPath);
   } catch (err) {
-    console.error("❌ Video upload error:", err);
+    console.error("❌ Error attaching video:", err);
     await browser.close();
     process.exit(1);
   }
 
   // --- Next → Next ---
   await clickButtonByText(composer, ["Next", "পরবর্তী"], "Composer");
-  await delay(3000);
+  await delay(2000);
   await clickButtonByText(composer, ["Next", "পরবর্তী"], "Composer");
-  await delay(3000);
+  await delay(2000);
 
   // --- Caption box ---
   try {
@@ -143,8 +142,8 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
     await composer.type('div[role="textbox"][contenteditable="true"]', captionText);
     console.log("✍️ Caption লিখা হয়েছে:", captionText);
   } catch (err) {
-    console.error("❌ Caption box error:", err);
-    await page.screenshot({ path: "caption_error.png" });
+    console.error("❌ Caption error:", err);
+    await page.screenshot({ path: "caption_error.png", fullPage: true });
     await browser.close();
     process.exit(1);
   }
@@ -152,7 +151,7 @@ async function clickButtonByText(pageOrFrame, labels, context = "Page") {
   // --- Publish ---
   await clickButtonByText(composer, ["Publish", "প্রকাশ"], "Composer");
 
-  console.log("✅ Reel upload flow finished!");
+  console.log("✅ Reel upload + publish done!");
   await delay(15000);
   await browser.close();
 })();
