@@ -1,12 +1,16 @@
-// puppeteer_uploader.js
 const puppeteer = require("puppeteer");
 const delay = ms => new Promise(res => setTimeout(res, ms));
 
 const PAGE_PROFILE_LINK = process.env.FB_PAGE_PROFILE;
 
 (async () => {
-  const videoPath = process.argv[2];
-  if (!videoPath) process.exit(1);
+  const videoPath = process.argv[2];   // ভিডিও path
+  const captionText = process.argv[3] || "🚀 Auto Reel Upload";  // Caption
+  
+  if (!videoPath) {
+    console.error("❌ ভিডিও path দিতে হবে!");
+    process.exit(1);
+  }
 
   const browser = await puppeteer.launch({
     headless: true,
@@ -25,42 +29,48 @@ const PAGE_PROFILE_LINK = process.env.FB_PAGE_PROFILE;
 
   const page = await browser.newPage();
 
-  console.log("🌐 Opening Page profile…");
+  // Page profile ওপেন
   await page.goto(PAGE_PROFILE_LINK, { waitUntil: "networkidle2" });
   await delay(5000);
 
-  // Switch Now বাটন
+  // "Switch Now" বাটন থাকলে চাপো
   const [btn] = await page.$x("//div[@role='button'][.//span[text()='Switch Now']]");
   if (btn) {
     await btn.click();
     console.log("✅ Switched into Page Context!");
-  } else {
-    console.log("⚠️ Switch Now button পাওয়া যায়নি!");
   }
 
   await delay(8000);
 
-  // Reels Composer
-  console.log("🌐 Opening Reels Composer…");
+  // Reels composer ওপেন করো
   await page.goto("https://www.facebook.com/reels/create", { waitUntil: "networkidle2" });
   await delay(7000);
 
   const composer = page.frames().find(f => f.url().includes("reel"));
+  if (!composer) {
+    console.error("❌ Composer iframe পাওয়া যায়নি!");
+    await browser.close();
+    process.exit(1);
+  }
+
+  // ভিডিও attach
   const fileInput = await composer.$('input[type=file][accept*="video"]');
   await fileInput.uploadFile(videoPath);
   console.log("📤 ভিডিও attach complete!");
 
-  // Caption
+  // Caption বসানো
   await composer.waitForSelector('div[role="textbox"][contenteditable="true"]');
-  await composer.type('div[role="textbox"][contenteditable="true"]',
-    "🚀 Auto TikTok → FB Reel! " + new Date().toLocaleString()
-  );
-  await delay(2000);
+  await composer.type('div[role="textbox"][contenteditable="true"]', captionText);
+  console.log("✍️ Caption লিখা হয়েছে:", captionText);
 
-  // Publish
+  // Publish বাটন
   const pubBtns = await composer.$x("//div[@role='button']//span[contains(text(),'Publish') or contains(text(),'প্রকাশ')]");
-  if (pubBtns[0]) await pubBtns[0].click();
+  if (pubBtns[0]) {
+    await pubBtns[0].click();
+    console.log("✅ Published Reel!");
+  } else {
+    console.log("⚠️ Publish button পাওয়া যায়নি!");
+  }
 
-  console.log("✅ Published Reel!");
   await browser.close();
 })();
