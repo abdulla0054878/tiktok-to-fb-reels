@@ -40,26 +40,26 @@ const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
     if (cookiesJSON) {
       let cookies = JSON.parse(cookiesJSON);
 
-      // ⚡ Normalize sameSite values for Puppeteer
+      // 🔥 Fix sameSite issue
       cookies = cookies.map((c) => {
         if (c.sameSite) {
-          let v = String(c.sameSite).toLowerCase();
+          const v = String(c.sameSite).toLowerCase();
           if (v.includes("lax")) c.sameSite = "Lax";
           else if (v.includes("strict")) c.sameSite = "Strict";
           else if (v.includes("none")) c.sameSite = "None";
           else {
-            console.log("⚠️ Removing unsupported sameSite:", c.sameSite);
-            delete c.sameSite;
+            console.log("⚠️ Dropping invalid sameSite:", c.sameSite);
+            delete c.sameSite; // Invalid হলে ফিল্ড মুছে ফেলবো
           }
         }
         return c;
       });
 
-      console.log("🍪 Cookies parsed, total =", cookies.length);
+      console.log("🍪 Cookies parsed:", cookies.length, "items");
       await page.setCookie(...cookies);
       console.log("✅ Cookies applied!");
     } else {
-      console.error("⚠️ FB_COOKIES missing!");
+      console.error("⚠️ FB_COOKIES env missing!");
     }
   } catch (err) {
     console.error("❌ Cookie parse/set error:", err);
