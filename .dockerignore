@@ -1,4 +1,9 @@
 node_modules
 __pycache__
 *.log
+*.mp4
 myProfile
+*.env
+.DS_Store
+.vscode
+.idea
