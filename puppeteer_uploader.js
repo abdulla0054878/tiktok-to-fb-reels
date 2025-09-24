@@ -39,15 +39,10 @@ const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
     if (cookiesJSON) {
       let cookies = JSON.parse(cookiesJSON);
 
-      // 🚨 Force remove sameSite from all cookies
-      cookies = cookies.map(c => {
-        if ("sameSite" in c) {
-          delete c.sameSite;
-        }
-        return c;
-      });
+      // 🔥 Force remove all sameSite (safe fix)
+      cookies = cookies.map(c => { delete c.sameSite; return c; });
 
-      console.log("🍪 Cookies parsed:", cookies.length, "items (all sameSite removed)");
+      console.log("🍪 Cookies parsed:", cookies.length, "(sameSite removed)");
       await page.setCookie(...cookies);
       console.log("✅ Cookies applied safely!");
     } else {
@@ -74,7 +69,7 @@ const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
 
   await delay(5000);
 
-  // --- Switch Now if needed ---
+  // --- Switch Now Button ---
   try {
     const [btn] = await page.$x("//div[@role='button'][.//span[text()='Switch Now']]");
     if (btn) {
@@ -82,7 +77,7 @@ const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
       console.log("✅ Switched into Page Context!");
       await delay(5000);
     } else {
-      console.log("ℹ️ No 'Switch Now' button (maybe already in Page context)");
+      console.log("ℹ️ No 'Switch Now' button (maybe already Page context)");
     }
   } catch (err) {
     console.error("❌ Error clicking Switch Now:", err);
@@ -103,6 +98,7 @@ const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
 
   await delay(7000);
 
+  // --- Find composer frame ---
   const composer = page.frames().find((f) => f.url().includes("reel"));
   if (!composer) {
     console.error("❌ Composer iframe পাওয়া যায়নি (সম্ভবত লগইন হয়নি)!");
@@ -114,6 +110,7 @@ const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
   // --- Upload video ---
   try {
     const fileInput = await composer.$('input[type=file][accept*="video"]');
+    if (!fileInput) throw new Error("File input not found!");
     await fileInput.uploadFile(videoPath);
     console.log("📤 Video attached:", videoPath);
   } catch (err) {
@@ -124,25 +121,28 @@ const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
 
   // --- Write caption ---
   try {
-    await composer.waitForSelector('div[role="textbox"][contenteditable="true"]');
+    console.log("✍️ Trying to write caption...");
+    await composer.waitForSelector('div[role="textbox"][contenteditable="true"]', { timeout: 30000 });
     await composer.type('div[role="textbox"][contenteditable="true"]', captionText);
-    console.log("✍️ Caption written:", captionText);
+    console.log("✅ Caption written:", captionText);
   } catch (err) {
     console.error("❌ Error writing caption:", err);
+    await page.screenshot({ path: "caption_error.png" });
     await browser.close();
     process.exit(1);
   }
 
-  // --- Publish ---
+  // --- Publish button ---
   try {
     const pubBtns = await composer.$x(
       "//div[@role='button']//span[contains(text(),'Publish') or contains(text(),'প্রকাশ')]"
     );
-    if (pubBtns[0]) {
+    if (pubBtns && pubBtns[0]) {
       await pubBtns[0].click();
       console.log("✅ Reel published!");
     } else {
       console.error("❌ Publish button পাওয়া যায়নি!");
+      await page.screenshot({ path: "publish_error.png" });
     }
   } catch (err) {
     console.error("❌ Error clicking publish:", err);
