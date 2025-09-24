@@ -27,6 +27,7 @@ const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
         "--disable-gpu",
       ],
     });
+    console.log("✅ Browser launched OK");
   } catch (err) {
     console.error("❌ Browser launch error:", err);
     process.exit(1);
@@ -34,14 +35,28 @@ const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
 
   const page = await browser.newPage();
 
-  // Apply Cookies
+  // --- Cookies ---
   try {
     if (cookiesJSON) {
-      const cookies = JSON.parse(cookiesJSON);
+      let cookies = JSON.parse(cookiesJSON);
+
+      // ⚡ Normalize sameSite values for Puppeteer
+      cookies = cookies.map((c) => {
+        if (c.sameSite) {
+          const v = String(c.sameSite).toLowerCase();
+          if (v.includes("lax")) c.sameSite = "Lax";
+          else if (v.includes("strict")) c.sameSite = "Strict";
+          else if (v.includes("none")) c.sameSite = "None";
+          else delete c.sameSite; // মেলেনি → remove
+        }
+        return c;
+      });
+
+      console.log("🍪 Cookies parsed, total =", cookies.length);
       await page.setCookie(...cookies);
-      console.log("🍪 Cookies applied! Total =", cookies.length);
+      console.log("✅ Cookies applied!");
     } else {
-      console.error("⚠️ FB_COOKIES environment missing!");
+      console.error("⚠️ FB_COOKIES missing!");
     }
   } catch (err) {
     console.error("❌ Cookie parse/set error:", err);
@@ -49,79 +64,93 @@ const captionText = process.env.FB_CAPTION || "🚀 Auto Reel Upload";
     process.exit(1);
   }
 
+  // --- Open FB Page ---
   try {
     console.log("🌐 Opening FB Page Profile:", PAGE_PROFILE_LINK);
-    await page.goto(PAGE_PROFILE_LINK, { waitUntil: "networkidle2", timeout: 60000 });
+    await page.goto(PAGE_PROFILE_LINK, {
+      waitUntil: "networkidle2",
+      timeout: 60000,
+    });
   } catch (err) {
-    console.error("❌ Cannot open FB Page profile:", err);
+    console.error("❌ Cannot open FB PAGE:", err);
     await browser.close();
     process.exit(1);
   }
 
   await delay(5000);
 
-  // Switch to Page mode
+  // --- Switch Now Button ---
   try {
-    const [btn] = await page.$x("//div[@role='button'][.//span[text()='Switch Now']]");
+    const [btn] = await page.$x(
+      "//div[@role='button'][.//span[text()='Switch Now']]"
+    );
     if (btn) {
       await btn.click();
       console.log("✅ Switched into Page Context!");
-      await delay(8000);
+      await delay(5000);
     } else {
-      console.log("ℹ️ No 'Switch Now' button (maybe already in Page context)");
+      console.log("ℹ️ No 'Switch Now' button (already in Page?)");
     }
   } catch (err) {
-    console.error("❌ Error while switching context:", err);
+    console.error("❌ Error clicking Switch Now:", err);
   }
 
-  // Go to Reels composer
+  // --- Open Reels Composer ---
   try {
     console.log("🎬 Opening Reels composer...");
-    await page.goto("https://www.facebook.com/reels/create", { waitUntil: "networkidle2", timeout: 60000 });
-    await delay(7000);
+    await page.goto("https://www.facebook.com/reels/create", {
+      waitUntil: "networkidle2",
+      timeout: 60000,
+    });
   } catch (err) {
     console.error("❌ Cannot open Reels composer:", err);
     await browser.close();
     process.exit(1);
   }
 
-  // Find composer iframe
+  await delay(7000);
+
   const composer = page.frames().find((f) => f.url().includes("reel"));
   if (!composer) {
-    console.error("❌ Composer iframe পাওয়া যায়নি! হয়তো লগইন আসছে?");
+    console.error("❌ Composer iframe পাওয়া যায়নি! হয়তো লগইন হয়নি?");
     await page.screenshot({ path: "composer_error.png" });
     await browser.close();
     process.exit(1);
   }
 
+  // --- Upload video ---
   try {
-    console.log("📤 Uploading video:", videoPath);
     const fileInput = await composer.$('input[type=file][accept*="video"]');
     await fileInput.uploadFile(videoPath);
-    console.log("✅ Video attached!");
+    console.log("📤 Video attached:", videoPath);
   } catch (err) {
     console.error("❌ Error attaching video:", err);
     await browser.close();
     process.exit(1);
   }
 
+  // --- Write caption ---
   try {
-    console.log("✍️ Writing caption...");
     await composer.waitForSelector('div[role="textbox"][contenteditable="true"]');
-    await composer.type('div[role="textbox"][contenteditable="true"]', captionText);
-    console.log("✅ Caption written:", captionText);
+    await composer.type(
+      'div[role="textbox"][contenteditable="true"]',
+      captionText
+    );
+    console.log("✍️ Caption written:", captionText);
   } catch (err) {
     console.error("❌ Error writing caption:", err);
     await browser.close();
     process.exit(1);
   }
 
+  // --- Publish ---
   try {
-    console.log("🚀 Clicking Publish...");
-    const pubBtns = await composer.$x("//div[@role='button']//span[contains(text(),'Publish') or contains(text(),'প্রকাশ')]");
+    const pubBtns = await composer.$x(
+      "//div[@role='button']//span[contains(text(),'Publish') or contains(text(),'প্রকাশ')]"
+    );
     if (pubBtns[0]) {
       await pubBtns[0].click();
-      console.log("✅ Published Reel!");
+      console.log("✅ Reel published!");
     } else {
       console.error("❌ Publish button পাওয়া যায়নি!");
     }
