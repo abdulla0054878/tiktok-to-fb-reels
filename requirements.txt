@@ -1,13 +1,15 @@
-# TikTok ভিডিও ডাউনলোডের জন্য
+# -------- Python Dependencies --------
+
+# TikTok (এবং অন্যান্য সাইট) থেকে ভিডিও ডাউনলোড টুল
 yt-dlp
 
-# Scheduler (প্রতি ৫ মিনিটে কাজ চালানোর জন্য)
+# Scheduler -> প্রতি ৫ মিনিটে TikTok চেক করার জন্য
 schedule
 
-# Google Drive API
+# Google Drive ফাইল আপলোড API
 google-api-python-client
 google-auth
 google-auth-oauthlib
 
-# HTTP Requests (কোনো API কল বা extra দরকার হলে)
+# HTTP API কল ব্যবহারের জন্য (অতিরিক্ত দরকার হলে)
 requests
