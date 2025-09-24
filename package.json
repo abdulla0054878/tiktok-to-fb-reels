@@ -2,6 +2,13 @@
   "name": "fb-reels-bot",
   "version": "1.0.0",
   "main": "puppeteer_uploader.js",
+  "scripts": {
+    "start": "node puppeteer_uploader.js",
+    "debug": "HEADLESS=false node puppeteer_uploader.js sample.mp4 'Test Caption'"
+  },
+  "engines": {
+    "node": ">=18"
+  },
   "dependencies": {
     "puppeteer": "^22.0.0"
   }
