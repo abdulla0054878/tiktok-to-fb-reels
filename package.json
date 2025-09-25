@@ -1,15 +1,12 @@
 {
   "name": "fb-reels-bot",
   "version": "1.0.0",
-  "main": "puppeteer_uploader.js",
+  "description": "TikTok → Facebook Reels auto uploader bot",
+  "main": "fb_reels_uploader_final.js",
   "scripts": {
-    "start": "node puppeteer_uploader.js",
-    "debug": "HEADLESS=false node puppeteer_uploader.js sample.mp4 'Test Caption'"
-  },
-  "engines": {
-    "node": ">=18"
+    "start": "python3 tiktok_worker.py"
   },
   "dependencies": {
-    "puppeteer": "^22.0.0"
+    "puppeteer": "^21.6.0"
   }
 }
